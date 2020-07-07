@@ -22,6 +22,8 @@
 #'                  the phenotype file.
 #' @param family the type of the phenotype: "gaussian", "binomial", or "cox". If not provided or NULL,
 #'               it will be detected based on the number of levels in the response.
+#' @param weights observation weights. Can be total counts if responses are proportion matrices. 
+#'                Default is 1 for each observation
 #' @param covariates a character vector containing the names of the covariates included in the lasso
 #'                   fitting, whose coefficients will not be penalized. The names must exist in the
 #'                   column names of the phenotype file.
@@ -92,9 +94,11 @@
 #' @importFrom data.table ':='
 #'
 #' @export
-snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, covariates = NULL,
-                   alpha = 1, nlambda = 100, lambda.min.ratio = ifelse(nobs < nvars, 0.01, 1e-04),
-                   split.col = NULL, p.factor = NULL, status.col = NULL, mem = NULL, configs = NULL) {
+snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, 
+                   covariates = NULL, weights = NULL, alpha = 1, nlambda = 100, 
+                   lambda.min.ratio = ifelse(nobs < nvars, 0.01, 1e-04),
+                   split.col = NULL, p.factor = NULL, status.col = NULL, 
+                   mem = NULL, configs = NULL) {
 
   validation <- (!is.null(split.col))
   time.start <- Sys.time()
@@ -141,10 +145,10 @@ snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, cov
   }
 
   ### --- Define the set of individual IDs for training (and validation) set(s) --- ###
-  if(is.null(split.col)){
+  if (is.null(split.col)) {
       splits <- c('train')
       ids[['train']] <- phe[['master']]$ID
-  }else{
+  } else {
       splits <- c('train', 'val')
       for(s in splits){
           ids[[s]] <- phe[['master']]$ID[ phe[['master']][[split.col]] == s ]
@@ -173,6 +177,13 @@ snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, cov
           surv[[s]] <- survival::Surv(response[[s]], status[[s]])
       }
   }
+  
+  ### --- Prepare the weights --- ###
+  if (is.null(weights)) weights <- rep(1, nrow(phe[['master']]))
+  names(weights) <- phe[['master']]$ID
+  weights.train <- weights[ids[['train']]]
+  
+  if (validation) weights.val <- weights[ids[['val']]]
 
   ### --- Read genotypes --- ###
   vars <- dplyr::mutate(dplyr::rename(data.table::fread(cmd=paste0(configs[['zstdcat.path']], ' ', paste0(genotype.pfile, '.pvar.zst'))), 'CHROM'='#CHROM'), VAR_ID=paste(ID, ALT, sep='_'))$VAR_ID
@@ -197,12 +208,12 @@ snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, cov
   if (configs[['prevIter']] == 0) {
     snpnetLogger("Iteration 0")
     if (family == "cox"){
-        glmmod <- glmnet::glmnet(as.matrix(features[['train']]), surv[['train']], family="cox", standardize=F, lambda=c(0))
+        glmmod <- glmnet::glmnet(as.matrix(features[['train']]), surv[['train']], family="cox", weights = weights.train, standardize=F, lambda=c(0))
         residual <- computeCoxgrad(stats::predict(glmmod, newx=as.matrix(features[['train']])), response[['train']], status[['train']])
     } else {
         glmmod <- stats::glm(
             stats::as.formula(paste(phenotype, " ~ ", paste(c(1, covariates), collapse = " + "))),
-            data = phe[['train']], family = family
+            data = phe[['train']], family = family, weights = weights.train
         )
         residual <- matrix(stats::residuals(glmmod, type = "response"), ncol = 1)
     }
@@ -212,7 +223,7 @@ snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, cov
     if (configs[['verbose']]) snpnetLogger("  Start computing inner product for initialization ...")
     time.prod.init.start <- Sys.time()
 
-    prod.full <- computeProduct(residual, genotype.pfile, vars, stats, configs, iter=0) / nrow(phe[['train']])
+    prod.full <- computeProduct(residual, genotype.pfile, vars, stats, configs, weights.train, iter=0) / nrow(phe[['train']])
     score <- abs(prod.full[, 1])
 
     if (!is.null(p.factor)){score <- score/p.factor[names(score)]} # Divide the score by the penalty factor
@@ -333,9 +344,9 @@ snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, cov
       } else {
         beta0 <- prev.beta
       }
-      if(family == "cox"){
+      if (family == "cox") {
           glmfit <- glmnetPlus::glmnet(
-                  features[['train']], surv[['train']], family = family, alpha = alpha,
+                  features[['train']], surv[['train']], family = family, weights = weights.train, alpha = alpha,
                   lambda = current.lams.adjusted[start.lams:num.lams], penalty.factor = penalty.factor,
                   standardize = configs[['standardize.variant']], thresh = configs[['glmnet.thresh']], beta0 = beta0
               )
@@ -343,15 +354,15 @@ snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, cov
           residual <- computeCoxgrad(pred.train, response[['train']], status[['train']])
       } else {
           glmfit <- glmnetPlus::glmnet(
-              features[['train']], response[['train']], family = family, alpha = alpha,
+              features[['train']], response[['train']], family = family, weights = weights.train, alpha = alpha,
               lambda = current.lams.adjusted[start.lams:num.lams], penalty.factor = penalty.factor,
               standardize = configs[['standardize.variant']], thresh = configs[['glmnet.thresh']],
               type.gaussian = "naive", beta0 = beta0
           )
-          if(family=="gaussian"){
+          if (family=="gaussian") {
               residual <- glmfit$residuals
               pred.train <- response[['train']] - residual
-          }else{
+          } else {
               pred.train <- stats::predict(glmfit, newx = as.matrix(features[['train']]), type = "response")
               residual <- response[['train']] - pred.train
           }
@@ -362,7 +373,7 @@ snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, cov
         tmp.features.matrix <- as.matrix(features[['train']])
         if(family=="cox"){
             glmfit <- glmnet::glmnet(
-                tmp.features.matrix, surv[['train']], family = family, alpha = alpha,
+                tmp.features.matrix, surv[['train']], family = family, weights = weights.train, alpha = alpha,
                 lambda = current.lams.adjusted[start.lams:num.lams], penalty.factor = penalty.factor,
                 standardize = configs[['standardize.variant']], thresh = configs[['glmnet.thresh']]
             )
@@ -370,7 +381,7 @@ snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, cov
             residual <- computeCoxgrad(pred.train, response[['train']], status[['train']])
         }else{
             glmfit <- glmnet::glmnet(
-                tmp.features.matrix, response[['train']], family = family, alpha = alpha,
+                tmp.features.matrix, response[['train']], family = family, weights = weights.train, alpha = alpha,
                 lambda = current.lams.adjusted[start.lams:num.lams], penalty.factor = penalty.factor,
                 standardize = configs[['standardize.variant']], thresh = configs[['glmnet.thresh']],
                 type.gaussian = "naive"
@@ -392,7 +403,7 @@ snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, cov
     check.obj <- KKT.check(
         residual, genotype.pfile, vars, nrow(phe[['train']]),
         current.lams[start.lams:num.lams], ifelse(configs[['use.glmnetPlus']], 1, lambda.idx),
-        stats, glmfit, configs, iter, p.factor, alpha
+        stats, glmfit, configs, iter, weights.train, p.factor, alpha
     )
     snpnetLogger("KKT check obj done ...", indent=1)
 
@@ -444,14 +455,14 @@ snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, cov
 
       # compute metric
       if (family == "cox") {
-          metric.train[start.lams:max.valid.idx] <- computeMetric(pred.train[, 1:check.obj[["max.valid.idx"]], drop = F], surv[['train']], configs[['metric']])
-          if (validation) metric.val[start.lams:max.valid.idx] <- computeMetric(pred.val, surv[['val']], configs[['metric']])
+          metric.train[start.lams:max.valid.idx] <- computeMetric(pred.train[, 1:check.obj[["max.valid.idx"]], drop = F], surv[['train']], configs[['metric']], weights.train)
+          if (validation) metric.val[start.lams:max.valid.idx] <- computeMetric(pred.val, surv[['val']], configs[['metric']], weights.val)
       } else {
           snpnetLogger('metric train')
-          metric.train[start.lams:max.valid.idx] <- computeMetric(pred.train[, 1:check.obj[["max.valid.idx"]], drop = F], response[['train']], configs[['metric']])
+          metric.train[start.lams:max.valid.idx] <- computeMetric(pred.train[, 1:check.obj[["max.valid.idx"]], drop = F], response[['train']], configs[['metric']], weights.train)
           if (validation){
               snpnetLogger('metric val.')
-              metric.val[start.lams:max.valid.idx] <- computeMetric(pred.val, response[['val']], configs[['metric']])
+              metric.val[start.lams:max.valid.idx] <- computeMetric(pred.val, response[['val']], configs[['metric']], weights.val)
           }
       }
 

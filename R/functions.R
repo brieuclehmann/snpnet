@@ -392,7 +392,7 @@ readBinMat <- function(fhead, configs){
     M
 }
 
-computeProduct <- function(residual, pfile, vars, stats, configs, iter) {
+computeProduct <- function(residual, pfile, vars, stats, configs, weights, iter) {
   time.computeProduct.start <- Sys.time()
   snpnetLogger('Start computeProduct()', indent=2, log.time=time.computeProduct.start)
 
@@ -405,6 +405,7 @@ computeProduct <- function(residual, pfile, vars, stats, configs, iter) {
   residual_f <- file.path(configs[['results.dir']], configs[["save.dir"]], paste0("residuals_iter_", iter, ".tsv"))
 
   # write residuals to a file
+  residual <- sweep(residual, 1, weights, '*')
   residual_df <- data.frame(residual)
   colnames(residual_df) <- paste0('lambda_idx_', colnames(residual))
   residual_df %>%
@@ -446,11 +447,12 @@ computeProduct <- function(residual, pfile, vars, stats, configs, iter) {
   prod.full
 }
 
-KKT.check <- function(residual, pfile, vars, n.train, current.lams, prev.lambda.idx, stats, glmfit, configs, iter, p.factor=NULL, alpha = NULL) {
+KKT.check <- function(residual, pfile, vars, n.train, current.lams, prev.lambda.idx, stats, glmfit, configs, iter, weights, p.factor=NULL, alpha = NULL) {
   time.KKT.check.start <- Sys.time()
   if (is.null(alpha)) alpha <- 1
   if (configs[['KKT.verbose']]) snpnetLogger('Start KKT.check()', indent=1, log.time=time.KKT.check.start)
-  prod.full <- computeProduct(residual, pfile, vars, stats, configs, iter) / n.train
+  
+  prod.full <- computeProduct(residual, pfile, vars, stats, configs, weights, iter) / n.train
 
   if(!is.null(p.factor)){
     prod.full <- sweep(prod.full, 1, p.factor, FUN="/")
@@ -545,8 +547,10 @@ setDefaultMetric <- function(family){
     metric
 }
 
-computeMetric <- function(pred, response, metric.type) {
+computeMetric <- function(pred, response, metric.type, weights) {
     if (metric.type == 'r2') {
+        response <- response*weights
+        pred <- pred*weights
         metric <- 1 - apply((response - pred)^2, 2, sum) / sum((response - mean(response))^2)
     } else if (metric.type == 'auc') {
         metric <- apply(pred, 2, function(x) {
@@ -555,9 +559,9 @@ computeMetric <- function(pred, response, metric.type) {
             auc.obj@y.values[[1]]
         })
     } else if (metric.type == 'd2') {
-        d0 <- glmnet::coxnet.deviance(NULL, response)
+        d0 <- glmnet::coxnet.deviance(NULL, response, weights = weights)
         metric <- apply(pred, 2, function(p) {
-            d <- glmnet::coxnet.deviance(p, response)
+            d <- glmnet::coxnet.deviance(p, response, weights = weights)
             1 - d/d0
         })
     } else if (metric.type == 'C'){
