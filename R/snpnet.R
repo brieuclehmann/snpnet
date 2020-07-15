@@ -96,9 +96,9 @@
 #' @export
 snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, 
                    covariates = NULL, weights = NULL, alpha = 1, nlambda = 100, 
-                   lambda.min.ratio = ifelse(nobs < nvars, 0.01, 1e-04),
-                   split.col = NULL, p.factor = NULL, status.col = NULL, 
-                   mem = NULL, configs = NULL) {
+                   lambda.min.ratio = ifelse(nobs < nvars, 0.01, 1e-04), 
+                   full.lams = NULL, split.col = NULL, p.factor = NULL, 
+                   status.col = NULL, mem = NULL, configs = NULL) {
 
   validation <- (!is.null(split.col))
   time.start <- Sys.time()
@@ -234,8 +234,11 @@ snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
     nobs <- nrow(phe[['train']])
     nvars <- length(vars)-length(stats[["excludeSNP"]])-length(covariates)
     configs[['lambda.min.ratio']] <- lambda.min.ratio
-    full.lams <- computeLambdas(score, configs[['nlambda']], configs[['lambda.min.ratio']])
-
+    
+    if (is.null(full.lams)){
+      full.lams <- computeLambdas(score, configs[['nlambda']], configs[['lambda.min.ratio']])
+    }
+    
     lambda.idx <- 1
     num.lams <- configs[["nlams.init"]]
     features.to.keep <- names(glmmod$coefficients[-1])
