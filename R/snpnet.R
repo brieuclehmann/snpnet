@@ -96,10 +96,14 @@
 #' @export
 snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, 
                    covariates = NULL, weights = NULL, alpha = 1, nlambda = 100, 
-                   lambda.min.ratio = ifelse(nobs < nvars, 0.01, 1e-04), 
-                   full.lams = NULL, split.col = NULL, p.factor = NULL, 
-                   status.col = NULL, mem = NULL, configs = NULL) {
+                   lambda.min.ratio = NULL, full.lams = NULL, split.col = NULL, 
+                   p.factor = NULL, status.col = NULL, mem = NULL, 
+                   configs = NULL, lambda_only = FALSE) {
 
+  if (lambda_only & !is.null(full.lams)){
+    return(full.lams)
+  }
+  
   validation <- (!is.null(split.col))
   time.start <- Sys.time()
   snpnetLogger('Start snpnet', log.time = time.start)
@@ -233,10 +237,18 @@ snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
 
     nobs <- nrow(phe[['train']])
     nvars <- length(vars)-length(stats[["excludeSNP"]])-length(covariates)
+    if (is.null(lambda.min.ratio)) 
+      lambda.min.ratio <- ifelse(nobs < nvars, 0.01, 1e-04)
     configs[['lambda.min.ratio']] <- lambda.min.ratio
     
     if (is.null(full.lams)){
       full.lams <- computeLambdas(score, configs[['nlambda']], configs[['lambda.min.ratio']])
+    } else {
+      configs[['nlambda']] <- length(full.lams)
+    }
+    
+    if (lambda_only){
+      return(full.lams)
     }
     
     lambda.idx <- 1

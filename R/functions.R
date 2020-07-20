@@ -35,7 +35,7 @@
 predict_snpnet <- function(fit = NULL, saved_path = NULL, new_genotype_file, new_phenotype_file, phenotype,
                            gcount_path = NULL, meta_dir = NULL, meta_suffix = ".rda",
                            covariate_names = NULL, split_col = NULL, split_name = NULL, idx = NULL,
-                           family = NULL,
+                           family = NULL, weights = NULL,
                            snpnet_prefix = "output_iter_", snpnet_suffix = ".RData", snpnet_subdir = "results",
                            configs = list(zstdcat.path = "zstdcat", zcat.path='zcat')) {
 
@@ -83,6 +83,8 @@ predict_snpnet <- function(fit = NULL, saved_path = NULL, new_genotype_file, new
     beta <- fit$beta
     stats <- fit$stats
   }
+  
+  
 
   feature_names <- unique(unlist(sapply(beta, function(x) names(x[x != 0]))))
   feature_names <- setdiff(feature_names, covariate_names)
@@ -97,6 +99,7 @@ predict_snpnet <- function(fit = NULL, saved_path = NULL, new_genotype_file, new
     cov_no_missing <- apply(cov_master, 1, function(x) all(!is.na(x)))
     phe_master <- phe_master[cov_no_missing, ]
   }
+  
 
   if (is.null(family)) family <- inferFamily(phe_master, phenotype, NULL)
   if (is.null(configs[["metric"]])) configs[["metric"]] <- setDefaultMetric(family)
@@ -121,8 +124,13 @@ predict_snpnet <- function(fit = NULL, saved_path = NULL, new_genotype_file, new
   }
 
   covariates <- list()
+  weights_list <- list()
+  if (is.null(weights)) weights <- rep(1, nrow(phe_master))
+  names(weights) <- phe_master$ID
+  weights_list[['master']] <- weights
 
   for (split in split_name) {
+    weights_list[[split]] <- weights[ids[[split]]]
     if (length(covariate_names) > 0) {
       covariates[[split]] <- phe[[split]][, covariate_names, with = FALSE]
     } else {
@@ -163,7 +171,8 @@ predict_snpnet <- function(fit = NULL, saved_path = NULL, new_genotype_file, new
   }
 
   for (split in split_name) {
-    for (i in idx) {
+    for (j in seq_along(idx)) {
+      i <- idx[j]
       active_names <- names(beta[[i]])[beta[[i]] != 0]
       if (length(active_names) > 0) {
         features_single <- as.matrix(features[[split]][, active_names, with = F])
@@ -171,9 +180,9 @@ predict_snpnet <- function(fit = NULL, saved_path = NULL, new_genotype_file, new
         features_single <- matrix(0, nrow(features[[split]]), 0)
       }
       pred_single <- a0[[i]] + features_single %*% beta[[i]][active_names]
-      pred[[split]][, i] <- as.matrix(pred_single)
+      pred[[split]][, j] <- as.matrix(pred_single)
     }
-    metric[[split]] <- computeMetric(pred[[split]], response[[split]], configs[["metric"]])
+    metric[[split]] <- computeMetric(pred[[split]], response[[split]], configs[["metric"]], weights_list[[split]])
   }
 
   list(prediction = pred, response = response, metric = metric)
@@ -606,6 +615,12 @@ cleanUpIntermediateFiles <- function(configs){
     }
 }
 
+cleanUpCVFiles <- function(configs){
+    system(paste(
+      'rm', '-rf', file.path(configs[['results.dir']], configs[['cv.dir']]), sep=' '
+    ), intern=F, wait=T)
+}
+
 computeCoxgrad <- function(glmfits, time, d){
     apply(glmfits, 2, function(f){coxgrad(f,time,d,w=rep(1,length(f)))})
 }
@@ -660,10 +675,13 @@ setupConfigs <- function(configs, genotype.pfile, phenotype.file, phenotype, cov
         results.dir = NULL,
         meta.dir = 'meta',
         save.dir = 'results',
+        cv.dir = 'cv',
         verbose = FALSE,
         KKT.check.aggressive.experimental = FALSE,
         gcount.basename.prefix = 'snpnet.train',
         gcount.full.prefix=NULL,
+        cv.basename.prefix = 'snpnet.cvpheno',
+        cv.full.prefix=NULL,
         endian="little",
         metric=NULL,
         plink2.path='plink2',
@@ -693,8 +711,12 @@ setupConfigs <- function(configs, genotype.pfile, phenotype.file, phenotype, cov
     if (is.null(out[['results.dir']])) out[['results.dir']] <- tempdir(check = TRUE)
     dir.create(file.path(out[['results.dir']], out[["meta.dir"]]), showWarnings = FALSE, recursive = T)
     dir.create(file.path(out[['results.dir']], out[["save.dir"]]), showWarnings = FALSE, recursive = T)
+    dir.create(file.path(out[['results.dir']], out[["cv.dir"]]), showWarnings = FALSE, recursive = T)
     if(is.null(out[['gcount.full.prefix']])) out[['gcount.full.prefix']] <- file.path(
         out[['results.dir']], out[["meta.dir"]], out['gcount.basename.prefix']
+    )
+    if(is.null(out[['cv.full.prefix']])) out[['cv.full.prefix']] <- file.path(
+      out[['results.dir']], out[["cv.dir"]], out['cv.basename.prefix']
     )
 
     out
