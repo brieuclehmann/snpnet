@@ -28,6 +28,9 @@ it will be detected based on the number of levels in the response.}
 fitting, whose coefficients will not be penalized. The names must exist in the
 column names of the phenotype file.}
 
+\item{weights}{observation weights. Can be total counts if responses are proportion matrices. 
+Default is 1 for each observation}
+
 \item{alpha}{the elastic-net mixing parameter, where the penalty is defined as
 alpha * ||beta||_1 + (1-alpha)/2 * ||beta||_2^2. alpha = 1 corresponds to the lasso penalty,
 while alpha = 0 corresponds to the ridge penalty.}
