@@ -62,8 +62,10 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
   cv_configs$nCores <- cores_per_fold
   if (!is.null(mem)) {
     mem_cv <- mem*cores_per_fold
-  } else
+  } else {
     mem_cv <- NULL
+  }
+  cv_configs$mem <- mem_cv
   
   cvout = foreach::foreach(i = unique(foldids), .combine = 'rbind',
                            .packages = c("glmnet", "glmnetPlus", "snpnet")) %dopar% 
@@ -85,6 +87,7 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
   
   if (!is.null(mem)) mem <- mem*nfolds
   configs$nCores <- ncores
+  configs$mem <- mem
   
   snpnet.object = snpnet(genotype.pfile, phenotype.file, phenotype, family, 
                          covariates, weights, alpha, nlambda, lambda.min.ratio,
