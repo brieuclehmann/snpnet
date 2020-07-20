@@ -3,16 +3,27 @@
 #' Does k-fold cross-validation for snpnet, and returns a value for lambda
 #' 
 #' @importFrom foreach '%dopar%'
+#' @importFrom parallel makeCluster
+#' @importFrom parallel stopCluster
+#' @importFrom doParallel registerDoParallel
 #'
 #' @export
 
 cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, 
                       covariates = NULL, weights = NULL, alpha = 1, nlambda = 100, 
                       lambda.min.ratio = NULL, full.lams = NULL, foldids = NULL,
-                      nfolds = 5, p.factor = NULL, 
+                      nfolds = 5, p.factor = NULL, ncores = 1,
                       status.col = NULL, mem = NULL, configs = NULL) {
   
   `%dopar%` <- foreach::`%dopar%`
+  if (ncores > 1) {
+    cores_per_fold <- min(1, floor(ncores/nfolds))
+    options(cores = cores_per_fold)
+    cl <- parallel::makeCluster(ncores)
+    doParallel::registerDoParallel(cl)
+    
+    on.exit(parallel::stopCluster(cl))
+  }
   
   ### Set up cross-validation folds in phenotype.file
   
