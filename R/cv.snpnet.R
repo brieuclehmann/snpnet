@@ -45,6 +45,9 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
                       full.lams, split.col = NULL, p.factor, status.col, 
                       mem, configs, lambda_only = TRUE)
   
+  configs$nCores <- getOption("cores")
+  if (!is.null(mem)) mem <- mem*configs$nCores
+
   cvout = foreach::foreach(i = unique(foldids), .combine = 'rbind',
                            .packages = c("glmnet", "glmnetPlus")) %dopar% 
     {
@@ -61,6 +64,9 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
   
   ### Run snpnet on full training data set
   fit.lams = full.lams[lambda_na]
+  
+  if (!is.null(mem)) mem <- mem*nFolds
+  configs$nCores <- getOption("cores")*nFolds
   
   snpnet.object = snpnet(genotype.pfile, phenotype.file, phenotype, family, 
                          covariates, weights, alpha, nlambda, lambda.min.ratio,
