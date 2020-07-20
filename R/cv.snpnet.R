@@ -23,6 +23,8 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
     doParallel::registerDoParallel(cl)
     
     on.exit(parallel::stopCluster(cl))
+  } else{
+    cores_per_fold <- 1
   }
   
   ### Set up cross-validation folds in phenotype.file
@@ -56,16 +58,20 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
                       full.lams, split.col = NULL, p.factor, status.col, 
                       mem, configs, lambda_only = TRUE)
   
-  configs$nCores <- getOption("cores")
-  if (!is.null(mem)) mem <- mem*configs$nCores
+  configs$nCores <- cores_per_fold
+  if (!is.null(mem)) {
+    mem_cv <- mem*cores_per_fold
+  } else
+    mem_cv <- NULL
 
   cvout = foreach::foreach(i = unique(foldids), .combine = 'rbind',
                            .packages = c("glmnet", "glmnetPlus")) %dopar% 
     {
+      configs$results.dir <- paste0(configs$results.dir, "/fold", i)
       snpnet(genotype.pfile, cv.phenotype.file, phenotype, family, 
              covariates, weights, alpha, nlambda, lambda.min.ratio,
              full.lams, split.col = paste0("fold", i), p.factor, status.col, 
-             mem, configs)$metric.val
+             mem_cv, configs)$metric.val
     }
   
   cvm <- apply(cvout, 2, mean)
@@ -77,7 +83,7 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
   fit.lams = full.lams[lambda_na]
   
   if (!is.null(mem)) mem <- mem*nFolds
-  configs$nCores <- getOption("cores")*nFolds
+  configs$nCores <- ncores
   
   snpnet.object = snpnet(genotype.pfile, phenotype.file, phenotype, family, 
                          covariates, weights, alpha, nlambda, lambda.min.ratio,
