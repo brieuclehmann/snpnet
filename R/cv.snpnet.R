@@ -12,19 +12,19 @@
 cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL, 
                       covariates = NULL, weights = NULL, alpha = 1, nlambda = 100, 
                       lambda.min.ratio = NULL, full.lams = NULL, foldids = NULL,
-                      nfolds = 5, p.factor = NULL, ncores = 1,
+                      nfolds = 5, p.factor = NULL, ncores = 1, parallel = FALSE,
                       status.col = NULL, mem = NULL, configs = NULL) {
   
   `%dopar%` <- foreach::`%dopar%`
-  if (ncores > 1) {
+  if (!parallel | ncores == 1) {
+    cores_per_fold <- ncores
+  } else{
     cores_per_fold <- max(1, floor(ncores/nfolds))
     options(cores = cores_per_fold)
     cl <- parallel::makeCluster(ncores)
     doParallel::registerDoParallel(cl)
     
     on.exit(parallel::stopCluster(cl))
-  } else{
-    cores_per_fold <- 1
   }
   
   ### Set up cross-validation folds in phenotype.file
@@ -85,7 +85,7 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
   ### Run snpnet on full training data set
   fit.lams = full.lams[lambda_na]
   
-  if (!is.null(mem)) mem <- mem*nfolds
+  if (!is.null(mem)) mem <- mem*ncores
   configs$nCores <- ncores
   configs$mem <- mem
   

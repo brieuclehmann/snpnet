@@ -19,6 +19,7 @@ cv.snpnet(
   nfolds = 5,
   p.factor = NULL,
   ncores = 1,
+  parallel = FALSE,
   status.col = NULL,
   mem = NULL,
   configs = NULL
