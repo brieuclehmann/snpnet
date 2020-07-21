@@ -71,6 +71,7 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
                            .packages = c("glmnet", "glmnetPlus", "snpnet")) %dopar% 
     {
       cv_configs$results.dir <- paste0(configs$results.dir, "/fold", i)
+      cv_configs$gcount.full.prefix <- NULL
       snpnet(genotype.pfile, cv.phenotype.file, phenotype, family, 
              covariates, weights, alpha, nlambda, lambda.min.ratio,
              full.lams, split.col = paste0("fold", i), p.factor, status.col, 
