@@ -15,7 +15,8 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
                       nfolds = 5, p.factor = NULL, ncores = 1, parallel = FALSE,
                       status.col = NULL, mem = NULL, configs = NULL) {
   
-  `%dopar%` <- foreach::`%dopar%`
+  `%dopar%` <- if (parallel) foreach::`%dopar%` else foreach::`%do%`
+  
   if (!parallel | ncores == 1) {
     cores_per_fold <- ncores
   } else{
