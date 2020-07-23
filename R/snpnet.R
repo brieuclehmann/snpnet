@@ -459,11 +459,11 @@ snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
       if (validation) {
         time.val.pred.start <- Sys.time()
         if (family == "cox") {
-          pred.val <- stats::predict(glmfit, newx = as.matrix(features[['val']]), lambda = current.lams.adjusted[start.lams:max.valid.idx])
+          pred.val <- stats::predict(glmfit, newx = as.matrix(features[['val']]), s = current.lams.adjusted[start.lams:max.valid.idx])
         } else if (configs[['use.glmnetPlus']]) {
-          pred.val <- glmnetPlus::predict.glmnet(glmfit, newx = as.matrix(features[['val']]), lambda = current.lams.adjusted[start.lams:max.valid.idx], type = "response")
+          pred.val <- glmnetPlus::predict.glmnet(glmfit, newx = as.matrix(features[['val']]), s = current.lams.adjusted[start.lams:max.valid.idx], type = "response")
         } else {
-          pred.val <- glmnet::predict.glmnet(glmfit, newx = as.matrix(features[['val']]), lambda = current.lams.adjusted[start.lams:max.valid.idx], type = "response")
+          pred.val <- glmnet::predict.glmnet(glmfit, newx = as.matrix(features[['val']]), s = current.lams.adjusted[start.lams:max.valid.idx], type = "response")
         }
         snpnetLoggerTimeDiff("Time of prediction on validation matrix", time.val.pred.start, indent=2)
       }
