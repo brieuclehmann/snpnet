@@ -556,11 +556,16 @@ setDefaultMetric <- function(family){
     metric
 }
 
+compute_r2 <- function(y_pred, y_true, weights) {
+  ssTot <- sum(weights*((y_true - weighted.mean(y_true, weights))^2))
+  ssRes <- sum(weights*((y_true - y_pred)^2))
+  
+  1 - (ssRes/ssTot)
+}
+
 computeMetric <- function(pred, response, metric.type, weights) {
     if (metric.type == 'r2') {
-        response <- response*weights
-        pred <- pred*weights
-        metric <- 1 - apply((response - pred)^2, 2, sum) / sum((response - mean(response))^2)
+        metric <- apply(pred, 2, compute_r2, response, weights)
     } else if (metric.type == 'auc') {
         metric <- apply(pred, 2, function(x) {
             pred.obj <- ROCR::prediction(x, factor(response))
