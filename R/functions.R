@@ -567,11 +567,13 @@ computeMetric <- function(pred, response, metric.type, weights) {
     if (metric.type == 'r2') {
         metric <- apply(pred, 2, compute_r2, response, weights)
     } else if (metric.type == 'auc') {
-        metric <- apply(pred, 2, function(x) {
-            pred.obj <- ROCR::prediction(x, factor(response))
-            auc.obj <- ROCR::performance(pred.obj, measure = 'auc')
-            auc.obj@y.values[[1]]
-        })
+        metric <- apply(pred, 2, 
+                        function(x) glmnetPlus::auc(response, x, weights))
+        # metric <- apply(pred, 2, function(x) {
+        #     pred.obj <- ROCR::prediction(x, factor(response))
+        #     auc.obj <- ROCR::performance(pred.obj, measure = 'auc')
+        #     auc.obj@y.values[[1]]
+        # })
     } else if (metric.type == 'd2') {
         d0 <- glmnet::coxnet.deviance(NULL, response, weights = weights)
         metric <- apply(pred, 2, function(p) {
