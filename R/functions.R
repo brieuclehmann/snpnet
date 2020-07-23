@@ -582,7 +582,7 @@ computeMetric <- function(pred, response, metric.type, weights) {
 }
 
 checkEarlyStopping <- function(metric.val, max.valid.idx, iter, configs){
-    max.valid.idx.lag <- max.valid.idx-configs[['stopping.lag']]
+    max.valid.idx.lag <- max(0, max.valid.idx - configs[['stopping.lag']])
     max.val.1 <- max(metric.val[1:(max.valid.idx.lag)])
     max.val.2 <- max(metric.val[(max.valid.idx.lag+1):max.valid.idx])
     snpnetLogger(sprintf('stopping lag=%g, max.val.1=%g max.val.2=%g', max.valid.idx.lag, max.val.1, max.val.2))
@@ -597,7 +597,7 @@ checkEarlyStopping <- function(metric.val, max.valid.idx, iter, configs){
         ))
         snpnetLogger(paste0(
             "Previous ones: ",
-            paste(metric.val[(max.valid.idx-configs[['stopping.lag']]+1):max.valid.idx], collapse = ", "),
+            paste(metric.val[(max.valid.idx.lag+1):max.valid.idx], collapse = ", "),
             "."
         ), indent=1)
         earlyStop <- TRUE
