@@ -54,11 +54,18 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
   
   
   ### Get lambda path (hack for now...)
-  full.lams <- snpnet(genotype.pfile, phenotype.file, phenotype, family, 
-                      covariates, weights, alpha, nlambda, lambda.min.ratio,
-                      full.lams, split.col = NULL, p.factor, status.col, 
-                      mem, configs, lambda_only = TRUE)
-  
+  full.lams.file <- file.path(configs$results.dir, "full.lams.txt")
+  if (file.exists(full.lams.file)){
+    full.lams <- scan(full.lams.file)
+  } else{
+    full.lams <- snpnet(genotype.pfile, phenotype.file, phenotype, family, 
+                        covariates, weights, alpha, nlambda, lambda.min.ratio,
+                        full.lams, split.col = NULL, p.factor, status.col, 
+                        mem, configs, lambda_only = TRUE)
+    
+    write(full.lams, file = full.lams.file, ncolums = 1)
+  }
+
   cv_configs <- configs
   cv_configs$nCores <- cores_per_fold
   if (!is.null(mem)) {
@@ -72,11 +79,21 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
                            .packages = c("glmnet", "glmnetPlus", "snpnet")) %dopar% 
     {
       cv_configs$results.dir <- paste0(configs$results.dir, "/fold", i)
-      cv_configs$gcount.full.prefix <- NULL
-      snpnet(genotype.pfile, cv.phenotype.file, phenotype, family, 
-             covariates, weights, alpha, nlambda, lambda.min.ratio,
-             full.lams, split.col = paste0("fold", i), p.factor, status.col, 
-             mem_cv, cv_configs)$metric.val
+      outfile <- file.path(cv_configs$results.dir, metric.val)
+      
+      if (file.exists(outfile)) {
+        out <- scan(outfile)
+      } else {
+        cv_configs$gcount.full.prefix <- NULL
+        out <- snpnet(genotype.pfile, cv.phenotype.file, phenotype, family, 
+                      covariates, weights, alpha, nlambda, lambda.min.ratio,
+                      full.lams, split.col = paste0("fold", i), p.factor, status.col, 
+                      mem_cv, cv_configs)$metric.val
+        
+        write(out, outfile, ncolums = 1)
+      }
+
+      out
     }
   
   cvm <- apply(cvout, 2, mean)

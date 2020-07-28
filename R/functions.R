@@ -328,6 +328,8 @@ computeStats <- function(pfile, ids, configs) {
   keep_f       <- paste0(configs[['gcount.full.prefix']], '.keep')
   gcount_tsv_f <- paste0(configs[['gcount.full.prefix']], '.gcount.tsv')
 
+  gc_res <- gc()
+  
   dir.create(dirname(configs[['gcount.full.prefix']]), showWarnings = FALSE, recursive = TRUE)
   if (file.exists(gcount_tsv_f)) {
       gcount_df <- data.table::fread(gcount_tsv_f)
@@ -346,8 +348,11 @@ computeStats <- function(pfile, ids, configs) {
           '--out', configs[['gcount.full.prefix']],
           '--geno-counts cols=chrom,pos,ref,alt,homref,refalt,altxy,hapref,hapalt,missing,nobs'
       )
-      if (!is.null(configs[['mem']])) cmd_plink2 <- paste(cmd_plink2, '--memory', configs[['mem']])
-
+      if (!is.null(configs[['mem']])) {
+        cmd_plink2 <- paste(cmd_plink2, '--memory', 
+                            as.integer(configs[['mem']]) - ceiling(sum(as.matrix(gc_res)[,2])))
+      }
+      
       system(cmd_plink2, intern=F, wait=T)
 
       # read the gcount file
