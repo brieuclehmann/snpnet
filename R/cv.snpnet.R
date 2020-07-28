@@ -79,7 +79,7 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
                            .packages = c("glmnet", "glmnetPlus", "snpnet")) %dopar% 
     {
       cv_configs$results.dir <- paste0(configs$results.dir, "/fold", i)
-      outfile <- file.path(cv_configs$results.dir, metric.val)
+      outfile <- file.path(cv_configs$results.dir, "metric.val.txt")
       
       if (file.exists(outfile)) {
         out <- scan(outfile)
