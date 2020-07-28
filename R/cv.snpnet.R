@@ -63,7 +63,7 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
                         full.lams, split.col = NULL, p.factor, status.col, 
                         mem, configs, lambda_only = TRUE)
     
-    write(full.lams, file = full.lams.file, ncolums = 1)
+    write(full.lams, file = full.lams.file, ncolumns = 1)
   }
 
   cv_configs <- configs
@@ -90,7 +90,7 @@ cv.snpnet <- function(genotype.pfile, phenotype.file, phenotype, family = NULL,
                       full.lams, split.col = paste0("fold", i), p.factor, status.col, 
                       mem_cv, cv_configs)$metric.val
         
-        write(out, outfile, ncolums = 1)
+        write(out, outfile, ncolumns = 1)
       }
 
       out
